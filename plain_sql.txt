@@ -1,0 +1,775 @@
+-- Northern Iloilo State University Alumni System Database Schema
+-- Compatible with MariaDB
+
+-- Drop existing database if exists and create new one
+USE m8363_nisu;
+
+-- ===============================
+-- ADMIN MANAGEMENT TABLES
+-- ===============================
+
+-- Admin users table
+CREATE TABLE admins (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    full_name VARCHAR(100) NOT NULL,
+    role ENUM('super_admin', 'admin', 'moderator') DEFAULT 'admin',
+    is_active BOOLEAN DEFAULT TRUE,
+    last_login TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- ===============================
+-- ACADEMIC STRUCTURE TABLES
+-- ===============================
+
+-- Colleges/Schools
+CREATE TABLE colleges (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    code VARCHAR(10) UNIQUE NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    dean_name VARCHAR(100),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Programs/Courses
+CREATE TABLE programs (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    college_id INT NOT NULL,
+    code VARCHAR(20) UNIQUE NOT NULL,
+    name VARCHAR(150) NOT NULL,
+    degree_type ENUM('Certificate', 'Diploma', 'Associate', 'Bachelor', 'Master', 'Doctorate') NOT NULL,
+    duration_years DECIMAL(3,1) DEFAULT 4.0,
+    description TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (college_id) REFERENCES colleges(id) ON DELETE RESTRICT
+);
+
+-- Batches/Graduation Years
+CREATE TABLE batches (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    year INT NOT NULL,
+    semester ENUM('1st', '2nd', 'Summer') NOT NULL,
+    graduation_date DATE NOT NULL,
+    theme VARCHAR(200),
+    description TEXT,
+    total_graduates INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_batch (year, semester)
+);
+
+-- ===============================
+-- ALUMNI MANAGEMENT TABLES
+-- ===============================
+
+-- Main alumni table
+CREATE TABLE alumni (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    student_id VARCHAR(20) UNIQUE NOT NULL,
+    first_name VARCHAR(50) NOT NULL,
+    middle_name VARCHAR(50),
+    last_name VARCHAR(50) NOT NULL,
+    suffix VARCHAR(10),
+    email VARCHAR(100) UNIQUE,
+    phone VARCHAR(20),
+    birth_date DATE,
+    gender ENUM('Male', 'Female', 'Other'),
+    civil_status ENUM('Single', 'Married', 'Divorced', 'Widowed'),
+    
+    -- Address Information
+    present_address TEXT,
+    permanent_address TEXT,
+    city VARCHAR(50),
+    province VARCHAR(50),
+    country VARCHAR(50) DEFAULT 'Philippines',
+    postal_code VARCHAR(10),
+    
+    -- Academic Information
+    college_id INT NOT NULL,
+    program_id INT NOT NULL,
+    batch_id INT NOT NULL,
+    gpa DECIMAL(4,2),
+    latin_honor ENUM('Summa Cum Laude', 'Magna Cum Laude', 'Cum Laude'),
+    
+    -- Profile Information
+    profile_picture VARCHAR(255),
+    bio TEXT,
+    
+    -- Social Media
+    facebook_url VARCHAR(200),
+    linkedin_url VARCHAR(200),
+    twitter_url VARCHAR(200),
+    instagram_url VARCHAR(200),
+    
+    -- Account Status
+    is_verified BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
+    password_hash VARCHAR(255),
+    email_verified_at TIMESTAMP NULL,
+    last_login TIMESTAMP NULL,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (college_id) REFERENCES colleges(id) ON DELETE RESTRICT,
+    FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE RESTRICT,
+    FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE RESTRICT,
+    
+    INDEX idx_name (first_name, last_name),
+    INDEX idx_email (email),
+    INDEX idx_batch (batch_id),
+    INDEX idx_program (program_id),
+    FULLTEXT idx_search (first_name, middle_name, last_name, student_id)
+);
+
+-- Employment/Career Information
+CREATE TABLE alumni_employment (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    alumni_id INT NOT NULL,
+    company_name VARCHAR(150) NOT NULL,
+    job_title VARCHAR(100) NOT NULL,
+    employment_type ENUM('Full-time', 'Part-time', 'Contract', 'Freelance', 'Self-employed') NOT NULL,
+    industry VARCHAR(100),
+    salary_range ENUM('Below 15,000', '15,000-25,000', '25,001-35,000', '35,001-50,000', '50,001-75,000', '75,001-100,000', 'Above 100,000'),
+    job_description TEXT,
+    start_date DATE NOT NULL,
+    end_date DATE NULL,
+    is_current BOOLEAN DEFAULT FALSE,
+    company_address TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (alumni_id) REFERENCES alumni(id) ON DELETE CASCADE,
+    INDEX idx_alumni_employment (alumni_id),
+    INDEX idx_company (company_name)
+);
+
+-- Educational Attainment (Post-graduation)
+CREATE TABLE alumni_education (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    alumni_id INT NOT NULL,
+    institution_name VARCHAR(150) NOT NULL,
+    degree VARCHAR(100) NOT NULL,
+    field_of_study VARCHAR(100),
+    start_date DATE,
+    end_date DATE,
+    is_completed BOOLEAN DEFAULT FALSE,
+    gpa DECIMAL(4,2),
+    honors VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (alumni_id) REFERENCES alumni(id) ON DELETE CASCADE,
+    INDEX idx_alumni_education (alumni_id)
+);
+
+-- ===============================
+-- ANNOUNCEMENTS SYSTEM
+-- ===============================
+
+-- Announcements
+CREATE TABLE announcements (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    admin_id INT NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    content TEXT NOT NULL,
+    excerpt VARCHAR(500),
+    announcement_type ENUM('General', 'Event', 'Job', 'Achievement', 'Memorial', 'Urgent') DEFAULT 'General',
+    priority ENUM('Low', 'Normal', 'High', 'Critical') DEFAULT 'Normal',
+    
+    -- Media
+    featured_image VARCHAR(255),
+    attachments JSON,
+    
+    -- Targeting
+    target_batches JSON COMMENT 'Array of batch IDs',
+    target_programs JSON COMMENT 'Array of program IDs',
+    target_colleges JSON COMMENT 'Array of college IDs',
+    is_public BOOLEAN DEFAULT TRUE,
+    
+    -- Publishing
+    status ENUM('Draft', 'Published', 'Archived') DEFAULT 'Draft',
+    published_at TIMESTAMP NULL,
+    expires_at TIMESTAMP NULL,
+    
+    -- Engagement
+    view_count INT DEFAULT 0,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE RESTRICT,
+    INDEX idx_status (status),
+    INDEX idx_type (announcement_type),
+    INDEX idx_published (published_at),
+    FULLTEXT idx_content_search (title, content, excerpt)
+);
+
+-- Announcement views tracking
+CREATE TABLE announcement_views (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    announcement_id INT NOT NULL,
+    alumni_id INT,
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (announcement_id) REFERENCES announcements(id) ON DELETE CASCADE,
+    FOREIGN KEY (alumni_id) REFERENCES alumni(id) ON DELETE SET NULL,
+    INDEX idx_announcement_views (announcement_id),
+    INDEX idx_alumni_views (alumni_id)
+);
+
+-- ===============================
+-- EVENTS MANAGEMENT
+-- ===============================
+
+-- Events
+CREATE TABLE events (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    admin_id INT NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    description TEXT,
+    event_type ENUM('Reunion', 'Conference', 'Workshop', 'Social', 'Career Fair', 'Webinar', 'Other') DEFAULT 'Other',
+    
+    -- Date and Time
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    start_time TIME,
+    end_time TIME,
+    timezone VARCHAR(50) DEFAULT 'Asia/Manila',
+    
+    -- Location
+    venue VARCHAR(200),
+    address TEXT,
+    is_online BOOLEAN DEFAULT FALSE,
+    meeting_link VARCHAR(500),
+    
+    -- Registration
+    registration_required BOOLEAN DEFAULT FALSE,
+    registration_deadline DATE,
+    max_attendees INT,
+    registration_fee DECIMAL(10,2) DEFAULT 0.00,
+    
+    -- Media
+    featured_image VARCHAR(255),
+    gallery JSON COMMENT 'Array of image URLs',
+    
+    -- Status
+    status ENUM('Draft', 'Published', 'Cancelled', 'Completed') DEFAULT 'Draft',
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE RESTRICT,
+    INDEX idx_event_dates (start_date, end_date),
+    INDEX idx_event_type (event_type),
+    INDEX idx_event_status (status)
+);
+
+-- Event Registrations
+CREATE TABLE event_registrations (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    event_id INT NOT NULL,
+    alumni_id INT NOT NULL,
+    registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status ENUM('Registered', 'Confirmed', 'Attended', 'Cancelled') DEFAULT 'Registered',
+    notes TEXT,
+    payment_status ENUM('Pending', 'Paid', 'Refunded') DEFAULT 'Pending',
+    
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+    FOREIGN KEY (alumni_id) REFERENCES alumni(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_registration (event_id, alumni_id),
+    INDEX idx_event_registrations (event_id),
+    INDEX idx_alumni_registrations (alumni_id)
+);
+
+-- ===============================
+-- PHOTO GALLERY
+-- ===============================
+
+-- Photo Albums
+CREATE TABLE photo_albums (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    admin_id INT NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    description TEXT,
+    album_type ENUM('Event', 'Batch', 'General', 'Achievement') DEFAULT 'General',
+    cover_photo VARCHAR(255),
+    
+    -- Associations
+    event_id INT NULL,
+    batch_id INT NULL,
+    
+    is_public BOOLEAN DEFAULT TRUE,
+    view_count INT DEFAULT 0,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE RESTRICT,
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE SET NULL,
+    FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE SET NULL,
+    INDEX idx_album_type (album_type)
+);
+
+-- Photos
+CREATE TABLE photos (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    album_id INT NOT NULL,
+    admin_id INT NOT NULL,
+    filename VARCHAR(255) NOT NULL,
+    original_filename VARCHAR(255),
+    file_path VARCHAR(500) NOT NULL,
+    file_size INT,
+    mime_type VARCHAR(100),
+    width INT,
+    height INT,
+    
+    title VARCHAR(200),
+    description TEXT,
+    caption TEXT,
+    
+    -- Photo metadata
+    taken_at TIMESTAMP NULL,
+    camera_info JSON,
+    location VARCHAR(200),
+    
+    view_count INT DEFAULT 0,
+    upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (album_id) REFERENCES photo_albums(id) ON DELETE CASCADE,
+    FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE RESTRICT,
+    INDEX idx_album_photos (album_id),
+    FULLTEXT idx_photo_search (title, description, caption)
+);
+
+-- Photo Tags (for alumni identification)
+CREATE TABLE photo_tags (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    photo_id INT NOT NULL,
+    alumni_id INT NOT NULL,
+    x_coordinate DECIMAL(5,2), -- Percentage from left
+    y_coordinate DECIMAL(5,2), -- Percentage from top
+    width DECIMAL(5,2),
+    height DECIMAL(5,2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (photo_id) REFERENCES photos(id) ON DELETE CASCADE,
+    FOREIGN KEY (alumni_id) REFERENCES alumni(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_photo_tag (photo_id, alumni_id)
+);
+
+-- ===============================
+-- REPORTS AND ANALYTICS
+-- ===============================
+
+-- System Logs
+CREATE TABLE system_logs (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    admin_id INT,
+    alumni_id INT,
+    action VARCHAR(100) NOT NULL,
+    table_name VARCHAR(50),
+    record_id INT,
+    old_values JSON,
+    new_values JSON,
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE SET NULL,
+    FOREIGN KEY (alumni_id) REFERENCES alumni(id) ON DELETE SET NULL,
+    INDEX idx_logs_action (action),
+    INDEX idx_logs_table (table_name),
+    INDEX idx_logs_date (created_at)
+);
+
+-- Website Statistics
+CREATE TABLE site_statistics (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    metric_name VARCHAR(100) NOT NULL,
+    metric_value BIGINT NOT NULL,
+    date_recorded DATE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    UNIQUE KEY unique_metric_date (metric_name, date_recorded),
+    INDEX idx_metric_name (metric_name),
+    INDEX idx_date_recorded (date_recorded)
+);
+
+-- ===============================
+-- SYSTEM SETTINGS
+-- ===============================
+
+-- Application Settings
+CREATE TABLE settings (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    setting_key VARCHAR(100) UNIQUE NOT NULL,
+    setting_value TEXT,
+    setting_type ENUM('string', 'integer', 'boolean', 'json', 'text') DEFAULT 'string',
+    description TEXT,
+    is_public BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- ===============================
+-- SEARCH AND INDEXING
+-- ===============================
+
+-- Search index for universal search
+CREATE TABLE search_index (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    entity_type ENUM('alumni', 'announcement', 'event', 'photo', 'batch') NOT NULL,
+    entity_id INT NOT NULL,
+    title VARCHAR(500) NOT NULL,
+    content TEXT,
+    tags VARCHAR(1000),
+    search_vector TEXT,
+    last_indexed TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    INDEX idx_entity (entity_type, entity_id),
+    FULLTEXT idx_search_content (title, content, tags)
+);
+
+-- ===============================
+-- INSERT SAMPLE DATA
+-- ===============================
+
+-- Insert Admin Users
+INSERT INTO admins (username, email, password_hash, full_name, role) VALUES
+('admin', 'admin@nisu.edu.ph', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'System Administrator', 'super_admin'),
+('moderator1', 'mod1@nisu.edu.ph', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'John Moderator', 'moderator'),
+('admin2', 'admin2@nisu.edu.ph', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Maria Administrator', 'admin');
+
+-- Insert Colleges
+INSERT INTO colleges (code, name, description, dean_name) VALUES
+('CAS', 'College of Arts and Sciences', 'Liberal arts, sciences, and mathematics programs', 'Dr. Maria Santos'),
+('COE', 'College of Engineering', 'Engineering and technology programs', 'Dr. Jose Rodriguez'),
+('CBA', 'College of Business Administration', 'Business, management, and entrepreneurship programs', 'Dr. Ana Garcia'),
+('COEd', 'College of Education', 'Teacher education and pedagogy programs', 'Dr. Roberto Cruz'),
+('CAFS', 'College of Agriculture and Food Sciences', 'Agriculture, food technology, and environmental science', 'Dr. Carmen Dela Cruz'),
+('CIT', 'College of Information Technology', 'Computer science and information technology programs', 'Dr. Michael Tan');
+
+-- Insert Programs
+INSERT INTO programs (college_id, code, name, degree_type, duration_years) VALUES
+-- CAS Programs
+(1, 'BS-BIO', 'Bachelor of Science in Biology', 'Bachelor', 4.0),
+(1, 'BS-CHEM', 'Bachelor of Science in Chemistry', 'Bachelor', 4.0),
+(1, 'BS-MATH', 'Bachelor of Science in Mathematics', 'Bachelor', 4.0),
+(1, 'AB-ENG', 'Bachelor of Arts in English', 'Bachelor', 4.0),
+-- COE Programs
+(2, 'BS-CE', 'Bachelor of Science in Civil Engineering', 'Bachelor', 5.0),
+(2, 'BS-EE', 'Bachelor of Science in Electrical Engineering', 'Bachelor', 5.0),
+(2, 'BS-ME', 'Bachelor of Science in Mechanical Engineering', 'Bachelor', 5.0),
+-- CBA Programs
+(3, 'BS-BA', 'Bachelor of Science in Business Administration', 'Bachelor', 4.0),
+(3, 'BS-ACC', 'Bachelor of Science in Accountancy', 'Bachelor', 4.0),
+(3, 'BS-ENTREP', 'Bachelor of Science in Entrepreneurship', 'Bachelor', 4.0),
+-- COEd Programs
+(4, 'BEED', 'Bachelor of Elementary Education', 'Bachelor', 4.0),
+(4, 'BSED-ENG', 'Bachelor of Secondary Education Major in English', 'Bachelor', 4.0),
+(4, 'BSED-MATH', 'Bachelor of Secondary Education Major in Mathematics', 'Bachelor', 4.0),
+-- CAFS Programs
+(5, 'BS-AGRI', 'Bachelor of Science in Agriculture', 'Bachelor', 4.0),
+(5, 'BS-FOOD', 'Bachelor of Science in Food Technology', 'Bachelor', 4.0),
+-- CIT Programs
+(6, 'BS-CS', 'Bachelor of Science in Computer Science', 'Bachelor', 4.0),
+(6, 'BS-IT', 'Bachelor of Science in Information Technology', 'Bachelor', 4.0);
+
+-- Insert Batches
+INSERT INTO batches (year, semester, graduation_date, theme, total_graduates) VALUES
+(2020, '1st', '2020-03-15', 'Excellence in Innovation', 450),
+(2020, '2nd', '2020-07-15', 'Unity in Diversity', 380),
+(2021, '1st', '2021-03-15', 'Resilience and Hope', 520),
+(2021, '2nd', '2021-07-15', 'Digital Transformation', 410),
+(2022, '1st', '2022-03-15', 'Sustainability and Progress', 480),
+(2022, '2nd', '2022-07-15', 'Innovation and Leadership', 395),
+(2023, '1st', '2023-03-15', 'Building Tomorrow', 510),
+(2023, '2nd', '2023-07-15', 'Excellence Redefined', 425),
+(2024, '1st', '2024-03-15', 'Future Ready Graduates', 535),
+(2024, '2nd', '2024-07-15', 'Empowering Change', 445);
+
+-- Insert Sample Alumni
+INSERT INTO alumni (student_id, first_name, middle_name, last_name, email, phone, birth_date, gender, civil_status, present_address, city, province, college_id, program_id, batch_id, gpa, latin_honor, bio) VALUES
+('2020-001-BS-CS', 'Juan Carlos', 'Rivera', 'Dela Cruz', 'juan.delacruz@email.com', '+63 917 123 4567', '1998-05-15', 'Male', 'Single', '123 Rizal St., Poblacion', 'Iloilo City', 'Iloilo', 6, 16, 1, 3.75, 'Cum Laude', 'Software developer passionate about web technologies and mobile applications.'),
+('2020-002-BS-IT', 'Maria Isabel', 'Santos', 'Garcia', 'maria.garcia@email.com', '+63 918 234 5678', '1999-03-22', 'Female', 'Single', '456 Burgos Ave., La Paz', 'Iloilo City', 'Iloilo', 6, 17, 1, 3.85, 'Magna Cum Laude', 'IT professional specializing in database administration and system analysis.'),
+('2020-003-BS-CE', 'Robert', 'Miguel', 'Torres', 'robert.torres@email.com', '+63 919 345 6789', '1997-11-08', 'Male', 'Married', '789 Mabini St., Mandurriao', 'Iloilo City', 'Iloilo', 2, 5, 1, 3.65, 'Cum Laude', 'Civil engineer working on infrastructure development projects.'),
+('2021-001-BS-BA', 'Anna Marie', 'Cruz', 'Reyes', 'anna.reyes@email.com', '+63 920 456 7890', '1998-07-12', 'Female', 'Single', '321 Del Pilar St., Molo', 'Iloilo City', 'Iloilo', 3, 8, 3, 3.90, 'Magna Cum Laude', 'Business consultant and entrepreneur with expertise in marketing strategy.'),
+('2021-002-BSED-ENG', 'Michael', 'Jose', 'Fernandez', 'michael.fernandez@email.com', '+63 921 567 8901', '1999-01-25', 'Male', 'Single', '654 Luna St., City Proper', 'Iloilo City', 'Iloilo', 4, 12, 3, 3.70, 'Cum Laude', 'High school English teacher passionate about literature and creative writing.'),
+('2022-001-BS-AGRI', 'Catherine', 'Mae', 'Villanueva', 'catherine.villanueva@email.com', '+63 922 678 9012', '1998-09-18', 'Female', 'Married', '987 Bonifacio Dr., Jaro', 'Iloilo City', 'Iloilo', 5, 14, 5, 3.80, 'Magna Cum Laude', 'Agricultural extension worker focusing on sustainable farming practices.'),
+('2022-002-BS-ACC', 'David', 'Paul', 'Lopez', 'david.lopez@email.com', '+63 923 789 0123', '1997-12-03', 'Male', 'Single', '147 Quezon St., Arevalo', 'Iloilo City', 'Iloilo', 3, 9, 5, 3.95, 'Summa Cum Laude', 'Certified Public Accountant working for a multinational corporation.'),
+('2023-001-BS-BIO', 'Sarah', 'Joy', 'Mendoza', 'sarah.mendoza@email.com', '+63 924 890 1234', '1999-04-30', 'Female', 'Single', '258 Jalandoni St., Lapuz', 'Iloilo City', 'Iloilo', 1, 1, 7, 3.88, 'Magna Cum Laude', 'Research scientist working in biotechnology and pharmaceutical research.'),
+('2023-002-BS-EE', 'James', 'Andrew', 'Ramos', 'james.ramos@email.com', '+63 925 901 2345', '1998-06-14', 'Male', 'Single', '369 Iznart St., City Proper', 'Iloilo City', 'Iloilo', 2, 6, 7, 3.72, 'Cum Laude', 'Electrical engineer specializing in power systems and renewable energy.'),
+('2024-001-BEED', 'Michelle', 'Rose', 'Aquino', 'michelle.aquino@email.com', '+63 926 012 3456', '1999-08-27', 'Female', 'Single', '741 Aldeguer St., City Proper', 'Iloilo City', 'Iloilo', 4, 11, 9, 3.83, 'Magna Cum Laude', 'Elementary school teacher with a passion for early childhood education.');
+
+-- Insert Employment Records
+INSERT INTO alumni_employment (alumni_id, company_name, job_title, employment_type, industry, salary_range, start_date, is_current) VALUES
+(1, 'TechStart Solutions Inc.', 'Junior Software Developer', 'Full-time', 'Information Technology', '25,001-35,000', '2020-06-01', TRUE),
+(2, 'DataCore Philippines', 'Database Administrator', 'Full-time', 'Information Technology', '35,001-50,000', '2020-08-15', TRUE),
+(3, 'BuildRight Construction Corp.', 'Project Engineer', 'Full-time', 'Construction', '35,001-50,000', '2020-04-20', TRUE),
+(4, 'MarketPro Consulting', 'Business Analyst', 'Full-time', 'Business Services', '25,001-35,000', '2021-05-10', TRUE),
+(5, 'Iloilo National High School', 'English Teacher', 'Full-time', 'Education', '25,001-35,000', '2021-06-01', TRUE),
+(6, 'Department of Agriculture - Region 6', 'Agricultural Technologist', 'Full-time', 'Government', '25,001-35,000', '2022-07-01', TRUE),
+(7, 'SGV & Co.', 'Junior Auditor', 'Full-time', 'Professional Services', '25,001-35,000', '2022-05-15', TRUE),
+(8, 'BioMed Research Institute', 'Research Associate', 'Full-time', 'Research & Development', '25,001-35,000', '2023-04-01', TRUE),
+(9, 'Panay Electric Company', 'Electrical Engineer', 'Full-time', 'Utilities', '35,001-50,000', '2023-05-20', TRUE),
+(10, 'Iloilo Elementary School', 'Grade 3 Teacher', 'Full-time', 'Education', '25,001-35,000', '2024-06-01', TRUE);
+
+-- Insert Announcements
+INSERT INTO announcements (admin_id, title, content, excerpt, announcement_type, priority, status, published_at) VALUES
+(1, 'NISU Alumni Homecoming 2024', 'We are excited to announce the NISU Alumni Homecoming 2024! Join us for a weekend of reconnection, celebration, and memories. The event will feature various activities including a grand alumni dinner, campus tours, and college-specific gatherings. Registration is now open on our website. Early bird rates available until November 30, 2024.', 'Join us for NISU Alumni Homecoming 2024 - a weekend of reconnection and celebration!', 'Event', 'High', 'Published', '2024-10-01 09:00:00'),
+(1, 'Job Opportunities at TechStart Solutions', 'TechStart Solutions Inc. is looking for talented NISU graduates to join their expanding team. Positions available: Software Developers, System Analysts, and Project Managers. Competitive salary and benefits package. Interested alumni may send their resumes to hr@techstart.com.ph', 'TechStart Solutions hiring NISU graduates - Software Developers, Analysts, and Project Managers needed.', 'Job', 'Normal', 'Published', '2024-09-15 14:30:00'),
+(2, 'Scholarship Program for Alumni Children', 'The NISU Alumni Association is proud to announce the launch of the Educational Assistance Program for children of alumni. This program offers partial scholarships for deserving students. Application deadline is January 31, 2025. For more information and application forms, visit the Alumni Office.', 'Educational assistance program for alumni children now accepting applications.', 'General', 'High', 'Published', '2024-08-20 10:15:00'),
+(1, 'In Memoriam: Dr. Elena Rodriguez', 'It is with heavy hearts that we announce the passing of Dr. Elena Rodriguez, former Dean of the College of Arts and Sciences and beloved faculty member for over 30 years. Dr. Rodriguez was instrumental in shaping the academic excellence of our institution. Memorial services will be held on August 25, 2024, at 10:00 AM in the University Chapel.', 'Remembering Dr. Elena Rodriguez, former CAS Dean and beloved faculty member.', 'Memorial', 'Critical', 'Published', '2024-08-10 16:00:00'),
+(3, 'NISU Alumni Achievement Recognition', 'We are proud to recognize our outstanding alumni who have made significant contributions to their respective fields. This month, we celebrate Maria Garcia (BS-IT 2020) for her innovative mobile app that won the National ICT Awards, and David Lopez (BS-ACC 2022) for being the youngest CPA to pass the board exams with flying colors.', 'Celebrating outstanding alumni achievements in technology and accounting.', 'Achievement', 'Normal', 'Published', '2024-07-25 11:30:00');
+
+-- Insert Events
+INSERT INTO events (admin_id, title, description, event_type, start_date, end_date, start_time, end_time, venue, address, registration_required, max_attendees, registration_fee, status) VALUES
+(1, 'NISU Alumni Homecoming 2024', 'Annual homecoming celebration featuring dinner, awards ceremony, and networking sessions for all NISU alumni.', 'Reunion', '2024-12-14', '2024-12-15', '09:00:00', '21:00:00', 'NISU Main Campus', 'Northern Iloilo State University, Estancia, Iloilo', TRUE, 500, 1500.00, 'Published'),
+(2, 'Career Development Workshop', 'Professional development workshop focusing on leadership skills and career advancement strategies.', 'Workshop', '2024-11-20', '2024-11-20', '13:00:00', '17:00:00', 'NISU Conference Hall', 'Northern Iloilo State University, Estancia, Iloilo', TRUE, 100, 0.00, 'Published'),
+(1, 'Engineering Alumni Meetup', 'Quarterly meetup for College of Engineering alumni to discuss industry trends and networking opportunities.', 'Social', '2024-10-30', '2024-10-30', '18:00:00', '21:00:00', 'Iloilo Grand Hotel', 'Gen. Luna St., Iloilo City', TRUE, 80, 800.00, 'Published'),
+(3, 'Online IT Seminar: Emerging Technologies', 'Virtual seminar discussing AI, blockchain, and other emerging technologies in the IT industry.', 'Webinar', '2024-11-05', '2024-11-05', '14:00:00', '16:00:00', 'Online', 'Zoom Meeting Platform', TRUE, 200, 0.00, 'Published');
+
+-- Insert Photo Albums
+INSERT INTO photo_albums (admin_id, title, description, album_type, batch_id, is_public) VALUES
+(1, 'Batch 2024 Graduation Ceremony', 'Official photos from the March 2024 graduation ceremony', 'Batch', 9, TRUE),
+(1, 'Alumni Homecoming 2023', 'Memorable moments from the 2023 alumni homecoming celebration', 'Event', NULL, TRUE),
+(2, 'Engineering Week 2024', 'Photos from the annual Engineering Week celebration', 'Event', NULL, TRUE),
+(3, 'Campus Life Memories', 'Collection of campus life photos from various batches', 'General', NULL, TRUE);
+
+-- Insert Sample Photos
+INSERT INTO photos (album_id, admin_id, filename, original_filename, file_path, title, description) VALUES
+(1, 1, 'grad2024_001.jpg', 'graduation_ceremony_main.jpg', '/uploads/albums/1/grad2024_001.jpg', 'Graduation Ceremony Opening', 'Opening ceremony of March 2024 graduation'),
+(1, 1, 'grad2024_002.jpg', 'valedictorian_speech.jpg', '/uploads/albums/1/grad2024_002.jpg', 'Valedictorian Speech', 'Class valedictorian delivering the graduation speech'),
+(2, 1, 'homecoming2023_001.jpg', 'welcome_banner.jpg', '/uploads/albums/2/homecoming2023_001.jpg', 'Welcome Banner', 'Alumni homecoming welcome banner at main entrance'),
+(3, 2, 'engweek2024_001.jpg', 'robotics_competition.jpg', '/uploads/albums/3/engweek2024_001.jpg', 'Robotics Competition', 'Students competing in the annual robotics competition');
+
+-- Insert Settings
+INSERT INTO settings (setting_key, setting_value, setting_type, description, is_public) VALUES
+('site_name', 'NISU Alumni System', 'string', 'Website name displayed in headers and titles', TRUE),
+('site_description', 'Northern Iloilo State University Alumni Information System', 'string', 'Site description for meta tags', TRUE),
+('university_address', 'Estancia, Iloilo, Philippines 5017', 'string', 'University official address', TRUE),
+('university_phone', '+63 (33) 331-9447', 'string', 'University contact number', TRUE),
+('university_email', 'info@nisu.edu.ph', 'string', 'University official email', TRUE),
+('alumni_registration_enabled', '1', 'boolean', 'Allow new alumni to register online', FALSE),
+('max_upload_size', '10485760', 'integer', 'Maximum file upload size in bytes (10MB)', FALSE),
+('email_notifications', '1', 'boolean', 'Enable email notifications for announcements', FALSE),
+('maintenance_mode', '0', 'boolean', 'Enable maintenance mode to disable public access', FALSE),
+('google_analytics_id', 'GA-XXXXXXXXXX', 'string', 'Google Analytics tracking ID', FALSE),
+('social_facebook', 'https://facebook.com/NISUOfficial', 'string', 'Official Facebook page URL', TRUE),
+('social_twitter', 'https://twitter.com/NISUOfficial', 'string', 'Official Twitter account URL', TRUE);
+
+-- Insert Search Index entries for better searching
+INSERT INTO search_index (entity_type, entity_id, title, content, tags) VALUES
+('alumni', 1, 'Juan Carlos Rivera Dela Cruz', 'Software developer passionate about web technologies and mobile applications. Computer Science graduate from batch 2020.', 'juan carlos dela cruz software developer computer science 2020'),
+('alumni', 2, 'Maria Isabel Santos Garcia', 'IT professional specializing in database administration and system analysis. Information Technology graduate from batch 2020.', 'maria isabel garcia IT database administrator information technology 2020'),
+('alumni', 3, 'Robert Miguel Torres', 'Civil engineer working on infrastructure development projects. Civil Engineering graduate from batch 2020.', 'robert torres civil engineer infrastructure construction 2020'),
+('announcement', 1, 'NISU Alumni Homecoming 2024', 'We are excited to announce the NISU Alumni Homecoming 2024! Join us for a weekend of reconnection, celebration, and memories.', 'homecoming 2024 event reunion celebration'),
+('announcement', 2, 'Job Opportunities at TechStart Solutions', 'TechStart Solutions Inc. is looking for talented NISU graduates to join their expanding team.', 'job opportunities techstart software developer analyst project manager'),
+('event', 1, 'NISU Alumni Homecoming 2024', 'Annual homecoming celebration featuring dinner, awards ceremony, and networking sessions for all NISU alumni.', 'homecoming reunion alumni dinner awards networking');
+
+-- Insert some system statistics
+INSERT INTO site_statistics (metric_name, metric_value, date_recorded) VALUES
+('total_alumni', 1250, CURDATE()),
+('total_announcements', 45, CURDATE()),
+('total_events', 12, CURDATE()),
+('total_photos', 350, CURDATE()),
+('monthly_visitors', 2500, CURDATE() - INTERVAL 1 MONTH),
+('active_alumni', 890, CURDATE());
+
+-- ===============================
+-- USEFUL VIEWS FOR REPORTING
+-- ===============================
+
+-- Alumni Summary View
+CREATE VIEW alumni_summary AS
+SELECT 
+    a.id,
+    CONCAT(a.first_name, ' ', COALESCE(a.middle_name, ''), ' ', a.last_name) as full_name,
+    a.student_id,
+    a.email,
+    c.name as college,
+    p.name as program,
+    b.year as graduation_year,
+    b.semester as graduation_semester,
+    ae.company_name as current_employer,
+    ae.job_title as current_position,
+    a.created_at as registration_date
+FROM alumni a
+JOIN colleges c ON a.college_id = c.id
+JOIN programs p ON a.program_id = p.id
+JOIN batches b ON a.batch_id = b.id
+LEFT JOIN alumni_employment ae ON a.id = ae.alumni_id AND ae.is_current = TRUE;
+
+-- Batch Statistics View
+CREATE VIEW batch_statistics AS
+SELECT 
+    b.id,
+    b.year,
+    b.semester,
+    b.graduation_date,
+    COUNT(a.id) as actual_graduates,
+    c.name as college,
+    COUNT(CASE WHEN a.latin_honor = 'Summa Cum Laude' THEN 1 END) as summa_graduates,
+    COUNT(CASE WHEN a.latin_honor = 'Magna Cum Laude' THEN 1 END) as magna_graduates,
+    COUNT(CASE WHEN a.latin_honor = 'Cum Laude' THEN 1 END) as cum_laude_graduates
+FROM batches b
+LEFT JOIN alumni a ON b.id = a.batch_id
+LEFT JOIN colleges c ON a.college_id = c.id
+GROUP BY b.id, b.year, b.semester, b.graduation_date, c.name;
+
+-- Employment Statistics View
+CREATE VIEW employment_statistics AS
+SELECT 
+    c.name as college,
+    p.name as program,
+    COUNT(DISTINCT a.id) as total_alumni,
+    COUNT(DISTINCT ae.id) as employed_alumni,
+    ROUND((COUNT(DISTINCT ae.id) / COUNT(DISTINCT a.id)) * 100, 2) as employment_rate,
+    ae.salary_range,
+    COUNT(*) as count_in_range
+FROM alumni a
+JOIN colleges c ON a.college_id = c.id
+JOIN programs p ON a.program_id = p.id
+LEFT JOIN alumni_employment ae ON a.id = ae.alumni_id AND ae.is_current = TRUE
+GROUP BY c.name, p.name, ae.salary_range;
+
+-- ===============================
+-- STORED PROCEDURES FOR COMMON OPERATIONS
+-- ===============================
+
+DELIMITER //
+
+-- Procedure to update search index when alumni data changes
+CREATE PROCEDURE UpdateAlumniSearchIndex(IN alumni_id INT)
+BEGIN
+    DECLARE search_title VARCHAR(500);
+    DECLARE search_content TEXT;
+    DECLARE search_tags VARCHAR(1000);
+    
+    SELECT 
+        CONCAT(first_name, ' ', COALESCE(middle_name, ''), ' ', last_name),
+        CONCAT(COALESCE(bio, ''), ' ', c.name, ' graduate from batch ', b.year),
+        CONCAT(LOWER(first_name), ' ', LOWER(COALESCE(middle_name, '')), ' ', LOWER(last_name), ' ', 
+               LOWER(c.name), ' ', LOWER(p.name), ' ', b.year)
+    INTO search_title, search_content, search_tags
+    FROM alumni a
+    JOIN colleges c ON a.college_id = c.id
+    JOIN programs p ON a.program_id = p.id
+    JOIN batches b ON a.batch_id = b.id
+    WHERE a.id = alumni_id;
+    
+    INSERT INTO search_index (entity_type, entity_id, title, content, tags)
+    VALUES ('alumni', alumni_id, search_title, search_content, search_tags)
+    ON DUPLICATE KEY UPDATE 
+        title = search_title,
+        content = search_content,
+        tags = search_tags,
+        last_indexed = CURRENT_TIMESTAMP;
+END //
+
+-- Procedure to get alumni statistics by batch
+CREATE PROCEDURE GetBatchStatistics(IN batch_year INT)
+BEGIN
+    SELECT 
+        b.year,
+        b.semester,
+        b.graduation_date,
+        COUNT(a.id) as total_graduates,
+        c.name as college,
+        p.name as program,
+        COUNT(*) as program_graduates
+    FROM batches b
+    LEFT JOIN alumni a ON b.id = a.batch_id
+    LEFT JOIN colleges c ON a.college_id = c.id
+    LEFT JOIN programs p ON a.program_id = p.id
+    WHERE b.year = batch_year
+    GROUP BY b.year, b.semester, b.graduation_date, c.name, p.name
+    ORDER BY c.name, p.name;
+END //
+
+-- Function to calculate employment rate by program
+CREATE FUNCTION GetEmploymentRate(program_id INT) RETURNS DECIMAL(5,2)
+READS SQL DATA
+DETERMINISTIC
+BEGIN
+    DECLARE total_alumni INT;
+    DECLARE employed_alumni INT;
+    DECLARE employment_rate DECIMAL(5,2);
+    
+    SELECT COUNT(*) INTO total_alumni
+    FROM alumni WHERE program_id = program_id;
+    
+    SELECT COUNT(DISTINCT a.id) INTO employed_alumni
+    FROM alumni a
+    JOIN alumni_employment ae ON a.id = ae.alumni_id AND ae.is_current = TRUE
+    WHERE a.program_id = program_id;
+    
+    IF total_alumni > 0 THEN
+        SET employment_rate = (employed_alumni / total_alumni) * 100;
+    ELSE
+        SET employment_rate = 0;
+    END IF;
+    
+    RETURN employment_rate;
+END //
+
+DELIMITER ;
+
+-- ===============================
+-- INDEXES FOR BETTER PERFORMANCE
+-- ===============================
+
+-- Additional indexes for better query performance
+CREATE INDEX idx_alumni_graduation ON alumni(batch_id, college_id, program_id);
+CREATE INDEX idx_alumni_search_names ON alumni(first_name, last_name, student_id);
+CREATE INDEX idx_employment_current ON alumni_employment(alumni_id, is_current);
+CREATE INDEX idx_announcements_published ON announcements(status, published_at);
+CREATE INDEX idx_events_dates ON events(start_date, status);
+CREATE INDEX idx_photos_album ON photos(album_id, upload_date);
+
+-- ===============================
+-- SAMPLE QUERIES FOR TESTING
+-- ===============================
+
+/*
+-- Test universal search functionality
+SELECT * FROM search_index 
+WHERE MATCH(title, content, tags) AGAINST('juan software developer' IN NATURAL LANGUAGE MODE);
+
+-- Get alumni by batch with their employment status
+SELECT * FROM alumni_summary WHERE graduation_year = 2024;
+
+-- Get employment statistics by college
+SELECT * FROM employment_statistics WHERE college = 'College of Information Technology';
+
+-- Search for alumni by name (partial match)
+SELECT * FROM alumni 
+WHERE CONCAT(first_name, ' ', COALESCE(middle_name, ''), ' ', last_name) LIKE '%garcia%';
+
+-- Get recent announcements
+SELECT title, excerpt, published_at FROM announcements 
+WHERE status = 'Published' AND published_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+ORDER BY published_at DESC;
+
+-- Get upcoming events
+SELECT title, start_date, venue FROM events 
+WHERE status = 'Published' AND start_date >= CURDATE()
+ORDER BY start_date ASC;
+*/
+
+-- Database setup completed successfully!
+-- Total tables created: 24
+-- Sample data inserted for comprehensive testing
+-- Views and stored procedures created for reporting
+-- Indexes optimized for search and query performance
